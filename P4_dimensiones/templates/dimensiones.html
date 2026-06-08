@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Dimensiones — DiabetCare S.A.{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+  <h1 style="color: var(--color-primary); font-size: 28px;">Tablas de Dimensiones</h1>
+  <a href="/" class="btn-volver">← Volver</a>
+</div>
+
+<!-- DIM GENERO -->
+<h2 class="section-title">Géneros</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Género</th></tr></thead>
+    <tbody>
+      {% for row in generos %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM UBICACION -->
+<h2 class="section-title">Ubicaciones</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Ubicación</th></tr></thead>
+    <tbody>
+      {% for row in ubicaciones %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM FUMADO -->
+<h2 class="section-title">Historial de Fumado</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Historial</th></tr></thead>
+    <tbody>
+      {% for row in fumados %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM RANGO EDAD -->
+<h2 class="section-title">Rangos de Edad</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Descripción</th><th>Edad Mín</th><th>Edad Máx</th></tr></thead>
+    <tbody>
+      {% for row in rangos %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM RAZA -->
+<h2 class="section-title">Razas</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Raza</th></tr></thead>
+    <tbody>
+      {% for row in razas %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM AÑO -->
+<h2 class="section-title">Años</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Año</th></tr></thead>
+    <tbody>
+      {% for row in anios %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM NIVEL GLUCOSA -->
+<h2 class="section-title">Niveles de Glucosa</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Descripción</th><th>Mín</th><th>Máx</th></tr></thead>
+    <tbody>
+      {% for row in niveles_glucosa %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM NIVEL BMI -->
+<h2 class="section-title">Niveles de BMI</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Descripción</th><th>Mín</th><th>Máx</th></tr></thead>
+    <tbody>
+      {% for row in niveles_bmi %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM NIVEL HBA1C -->
+<h2 class="section-title">Niveles de HbA1c</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Descripción</th><th>Mín</th><th>Máx</th></tr></thead>
+    <tbody>
+      {% for row in niveles_hba1c %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM CLINICA -->
+<h2 class="section-title">Clínicas</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Nombre</th><th>Ciudad</th></tr></thead>
+    <tbody>
+      {% for row in clinicas %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM MEDICO -->
+<h2 class="section-title">Médicos</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Nombre</th><th>Especialidad</th><th>Clínica</th></tr></thead>
+    <tbody>
+      {% for row in medicos %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DIM TIPO DIABETES -->
+<h2 class="section-title">Tipos de Diabetes</h2>
+<div class="table-wrapper" style="margin-bottom: 30px;">
+  <table>
+    <thead><tr><th>ID</th><th>Tipo</th><th>Descripción</th></tr></thead>
+    <tbody>
+      {% for row in tipos_diabetes %}
+      <tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

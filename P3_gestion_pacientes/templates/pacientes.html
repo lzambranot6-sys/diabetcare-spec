@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Pacientes — DiabetCare S.A.{% endblock %}
+{% block content %}
+
+<!-- MODAL CONFIRMACION -->
+<div class="modal-overlay" id="modal-eliminar">
+  <div class="modal-box">
+    <h3>⚠️ Confirmar Eliminación</h3>
+    <p id="modal-mensaje">¿Estás seguro de que deseas eliminar estos registros?</p>
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmarEliminar()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GENERACION -->
+<div class="modal-overlay" id="modal-generar">
+  <div class="modal-box">
+    <h3>⚡ Confirmar Generación</h3>
+    <p id="modal-mensaje-generar">¿Deseas generar estos registros?</p>
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="cerrarModalGenerar()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmarGenerar()">Generar</button>
+    </div>
+  </div>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+  <h1 style="color: var(--color-primary); font-size: 28px;">Gestión de Pacientes</h1>
+  <a href="/" class="btn-volver">← Volver</a>
+</div>
+
+<!-- FORMULARIO CREAR -->
+<div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 25px; margin-bottom: 20px; width: 100%;">
+  <h3 style="color: var(--color-primary); margin-bottom: 15px;">➕ Agregar Paciente</h3>
+  <form method="post" action="/pacientes/crear" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px;">
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Género</label>
+      <select name="id_genero" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for g in generos %}<option value="{{ g[0] }}">{{ g[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Ubicación</label>
+      <select name="id_ubicacion" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for u in ubicaciones %}<option value="{{ u[0] }}">{{ u[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Fumado</label>
+      <select name="id_fumado" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for f in fumados %}<option value="{{ f[0] }}">{{ f[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Rango Edad</label>
+      <select name="id_rango_edad" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for r in rangos %}<option value="{{ r[0] }}">{{ r[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Raza</label>
+      <select name="id_raza" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for r in razas %}<option value="{{ r[0] }}">{{ r[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Clínica</label>
+      <select name="id_clinica" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for c in clinicas %}<option value="{{ c[0] }}">{{ c[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Médico</label>
+      <select name="id_medico" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for m in medicos %}<option value="{{ m[0] }}">{{ m[1] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Año</label>
+      <select name="year" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        {% for a in anios %}<option value="{{ a[0] }}">{{ a[0] }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Edad</label>
+      <input type="number" name="age" step="0.1" min="0" max="120" placeholder="45.0"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 90px;">
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">BMI</label>
+      <input type="number" name="bmi" step="0.01" min="0" placeholder="27.5"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 90px;">
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">HbA1c</label>
+      <input type="number" name="hba1c_level" step="0.1" min="0" placeholder="5.5"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 90px;">
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Glucosa</label>
+      <input type="number" name="blood_glucose_level" min="0" placeholder="120"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 90px;">
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Hipertensión</label>
+      <select name="hypertension" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        <option value="0">No</option>
+        <option value="1">Sí</option>
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Enf. Corazón</label>
+      <select name="heart_disease" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        <option value="0">No</option>
+        <option value="1">Sí</option>
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Diabetes</label>
+      <select name="diabetes" style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333;">
+        <option value="0">No</option>
+        <option value="1">Sí</option>
+      </select>
+    </div>
+
+    <div style="display: flex; align-items: flex-end;">
+      <button type="submit" class="btn-primary">Agregar</button>
+    </div>
+  </form>
+</div>
+
+<!-- CARGA MASIVA -->
+<div class="card" style="margin-bottom: 20px;">
+  <h3>⚡ Generación Masiva</h3>
+  <div style="display: flex; gap: 15px; align-items: flex-end; margin-top: 15px;">
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Cantidad a generar</label>
+      <input type="number" id="input-generar" min="1" max="1000000" value="100000" placeholder="Ej: 200000"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 150px;">
+      <span id="error-generar" style="color: #ff4444; font-size: 12px; display: none;">Ingresa un número mayor a 0</span>
+    </div>
+    <button class="btn-reload" onclick="abrirModalGenerar()">Generar Registros</button>
+  </div>
+  <p style="color: #555; font-size: 12px; margin-top: 10px;">⚠️ Corre en segundo plano. Refresca en unos segundos para ver el total actualizado.</p>
+  <form method="post" action="/pacientes/masivo" id="form-generar" style="display:none;">
+    <input type="hidden" name="cantidad" id="hidden-generar">
+  </form>
+</div>
+
+<!-- ELIMINACION MASIVA -->
+<div class="card" style="margin-bottom: 20px;">
+  <h3>🗑️ Eliminación Masiva</h3>
+  <div style="display: flex; gap: 15px; align-items: flex-end; margin-top: 15px;">
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <label style="color: var(--color-primary); font-size: 13px;">Cantidad a eliminar</label>
+      <input type="number" id="input-eliminar" min="1" max="1000000" value="100000" placeholder="Ej: 100000"
+             style="padding: 8px; border-radius: 8px; background: #1a1a1a; color: white; border: 1px solid #333; width: 150px;">
+      <span id="error-eliminar" style="color: #ff4444; font-size: 12px; display: none;">Ingresa un número mayor a 0</span>
+    </div>
+    <button style="padding: 9px 20px; background: #ff4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;"
+            onclick="abrirModalEliminar()">Eliminar Registros</button>
+  </div>
+  <p style="color: #555; font-size: 12px; margin-top: 10px;">⚠️ Elimina los últimos N registros insertados.</p>
+  <form method="post" action="/pacientes/eliminar-masivo" id="form-eliminar" style="display:none;">
+    <input type="hidden" name="cantidad" id="hidden-eliminar">
+  </form>
+</div>
+
+<!-- TOTAL -->
+<p class="total-records">Total: {{ "{:,}".format(total) }} pacientes — Página {{ page }} de {{ total_pages }}</p>
+
+<!-- TABLA -->
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Género</th>
+        <th>Ubicación</th>
+        <th>Fumado</th>
+        <th>Rango Edad</th>
+        <th>Edad</th>
+        <th>BMI</th>
+        <th>HbA1c</th>
+        <th>Glucosa</th>
+        <th>Hipertensión</th>
+        <th>Enf. Corazón</th>
+        <th>Diabetes</th>
+        <th>Clínica</th>
+        <th>Médico</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] }}</td>
+        <td>{{ row[3] }}</td>
+        <td>{{ row[4] }}</td>
+        <td>{{ row[5] }}</td>
+        <td>{{ row[6] }}</td>
+        <td>{{ row[7] }}</td>
+        <td>{{ row[8] }}</td>
+        <td>{{ 'Sí' if row[9] == 1 else 'No' }}</td>
+        <td>{{ 'Sí' if row[10] == 1 else 'No' }}</td>
+        <td>{{ 'Sí' if row[11] == 1 else 'No' }}</td>
+        <td>{{ row[12] }}</td>
+        <td>{{ row[13] }}</td>
+        <td>
+          <form method="post" action="/pacientes/eliminar/{{ row[0] }}">
+            <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer;">
+              Eliminar
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- PAGINACION -->
+{% if total_pages > 1 %}
+<div class="pagination" style="margin-top: 20px;">
+  {% if page > 1 %}
+    <a href="?page=1">Primera</a>
+    <a href="?page={{ page - 1 }}">Anterior</a>
+  {% else %}
+    <span class="pagination-disabled">Primera</span>
+    <span class="pagination-disabled">Anterior</span>
+  {% endif %}
+  <span class="pagination-info">Página {{ page }} de {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}">Siguiente</a>
+    <a href="?page={{ total_pages }}">Última</a>
+  {% else %}
+    <span class="pagination-disabled">Siguiente</span>
+    <span class="pagination-disabled">Última</span>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+function abrirModalGenerar() {
+  var val = parseInt(document.getElementById('input-generar').value);
+  if (!val || val <= 0) {
+    document.getElementById('error-generar').style.display = 'block';
+    return;
+  }
+  document.getElementById('error-generar').style.display = 'none';
+  document.getElementById('modal-mensaje-generar').textContent = '¿Generar ' + val.toLocaleString() + ' registros nuevos?';
+  document.getElementById('modal-generar').classList.add('active');
+}
+
+function cerrarModalGenerar() {
+  document.getElementById('modal-generar').classList.remove('active');
+}
+
+function confirmarGenerar() {
+  var val = document.getElementById('input-generar').value;
+  document.getElementById('hidden-generar').value = val;
+  document.getElementById('form-generar').submit();
+}
+
+function abrirModalEliminar() {
+  var val = parseInt(document.getElementById('input-eliminar').value);
+  if (!val || val <= 0) {
+    document.getElementById('error-eliminar').style.display = 'block';
+    return;
+  }
+  document.getElementById('error-eliminar').style.display = 'none';
+  document.getElementById('modal-mensaje').textContent = '¿Eliminar los últimos ' + val.toLocaleString() + ' registros?';
+  document.getElementById('modal-eliminar').classList.add('active');
+}
+
+function cerrarModal() {
+  document.getElementById('modal-eliminar').classList.remove('active');
+}
+
+function confirmarEliminar() {
+  var val = document.getElementById('input-eliminar').value;
+  document.getElementById('hidden-eliminar').value = val;
+  document.getElementById('form-eliminar').submit();
+}
+</script>
+
+{% endblock %}

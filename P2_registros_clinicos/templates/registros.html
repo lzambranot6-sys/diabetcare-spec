@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Registros Clínicos — DiabetCare S.A.{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+  <h1 style="color: var(--color-primary); font-size: 28px;">Registros Clínicos</h1>
+  <a href="/" class="btn-volver">← Volver</a>
+</div>
+
+<form class="filter-form" method="get" action="/registros">
+  <label for="filter-gender">Género</label>
+  <select id="filter-gender" name="gender">
+    <option value="">Todos</option>
+    {% for opt in dropdown_options.get('gender', []) %}
+      <option value="{{ opt }}"
+        {% if active_filters.get('gender') == opt|string %}selected{% endif %}>
+        {{ opt }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <label for="filter-diabetes">Diabetes</label>
+  <select id="filter-diabetes" name="diabetes">
+    <option value="">Todos</option>
+    <option value="1" {% if active_filters.get('diabetes') == '1' %}selected{% endif %}>Sí</option>
+    <option value="0" {% if active_filters.get('diabetes') == '0' %}selected{% endif %}>No</option>
+  </select>
+
+  <label for="filter-hypertension">Hipertensión</label>
+  <select id="filter-hypertension" name="hypertension">
+    <option value="">Todos</option>
+    <option value="1" {% if active_filters.get('hypertension') == '1' %}selected{% endif %}>Sí</option>
+    <option value="0" {% if active_filters.get('hypertension') == '0' %}selected{% endif %}>No</option>
+  </select>
+
+  <label for="filter-smoking">Historial de Tabaquismo</label>
+  <select id="filter-smoking" name="smoking_history">
+    <option value="">Todos</option>
+    {% for opt in dropdown_options.get('smoking_history', []) %}
+      <option value="{{ opt }}"
+        {% if active_filters.get('smoking_history') == opt|string %}selected{% endif %}>
+        {{ opt }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <button type="submit">Filtrar</button>
+</form>
+
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+
+  <p class="total-records">
+    Total: {{ pagination.total_records if pagination else 0 }} registros
+  </p>
+
+  <div class="table-wrapper">
+    <table id="records-table">
+      <thead>
+        <tr>
+          <th>id_paciente</th>
+          <th>year</th>
+          <th>gender</th>
+          <th>age</th>
+          <th>location</th>
+          <th>hypertension</th>
+          <th>heart_disease</th>
+          <th>smoking_history</th>
+          <th>bmi</th>
+          <th>hba1c_level</th>
+          <th>blood_glucose_level</th>
+          <th>diabetes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+        <tr>
+          <td>{{ record.id_paciente }}</td>
+          <td>{{ record.year }}</td>
+          <td>{{ record.gender }}</td>
+          <td>{{ record.age }}</td>
+          <td>{{ record.location }}</td>
+          <td>{{ 'Sí' if record.hypertension == 1 else 'No' }}</td>
+          <td>{{ 'Sí' if record.heart_disease == 1 else 'No' }}</td>
+          <td>{{ record.smoking_history }}</td>
+          <td>{{ record.bmi }}</td>
+          <td>{{ record.hba1c_level }}</td>
+          <td>{{ record.blood_glucose_level }}</td>
+          <td>{{ 'Sí' if record.diabetes == 1 else 'No' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination and pagination.total_pages > 1 %}
+  <div class="pagination">
+    {% set qs_gender = '&gender=' ~ active_filters.get('gender', '') if active_filters.get('gender') else '' %}
+    {% set qs_diabetes = '&diabetes=' ~ active_filters.get('diabetes', '') if active_filters.get('diabetes') else '' %}
+    {% set qs_hypertension = '&hypertension=' ~ active_filters.get('hypertension', '') if active_filters.get('hypertension') else '' %}
+    {% set qs_smoking = '&smoking_history=' ~ active_filters.get('smoking_history', '') if active_filters.get('smoking_history') else '' %}
+    {% set qs_filters = qs_gender ~ qs_diabetes ~ qs_hypertension ~ qs_smoking %}
+
+    {% if pagination.page > 1 %}
+      <a href="?page=1{{ qs_filters }}">Primera</a>
+      <a href="?page={{ pagination.page - 1 }}{{ qs_filters }}">Anterior</a>
+    {% else %}
+      <span class="pagination-disabled">Primera</span>
+      <span class="pagination-disabled">Anterior</span>
+    {% endif %}
+
+    <span class="pagination-info">
+      Página {{ pagination.page }} de {{ pagination.total_pages }}
+    </span>
+
+    {% if pagination.has_next %}
+      <a href="?page={{ pagination.page + 1 }}{{ qs_filters }}">Siguiente</a>
+      <a href="?page={{ pagination.total_pages }}{{ qs_filters }}">Última</a>
+    {% else %}
+      <span class="pagination-disabled">Siguiente</span>
+      <span class="pagination-disabled">Última</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

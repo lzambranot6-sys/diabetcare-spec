@@ -1,0 +1,646 @@
+"""
+app.py — DiabetCare S.A. Flask application.
+"""
+
+import math
+import os
+import threading
+from contextlib import contextmanager
+from dataclasses import dataclass
+
+import psycopg2
+from flask import Flask, jsonify, render_template, request
+
+from config import DB_CONFIG
+
+import clickhouse_connect
+
+def get_ch_client():
+    return clickhouse_connect.get_client(
+        host='localhost',
+        port=8123,
+        username='default',
+        password='admin123'
+    )
+
+from flask import Flask, jsonify, render_template, request, redirect
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+DATASET_URL = os.getenv(
+    "DATASET_URL",
+    "https://raw.githubusercontent.com/diabetcare/dataset/main/diabetes_dataset.csv",
+)
+PAGE_SIZE = 100
+BATCH_SIZE = 1000
+DOWNLOAD_TIMEOUT = 30  # seconds
+
+# ---------------------------------------------------------------------------
+# Reload state (protected by reload_lock)
+# ---------------------------------------------------------------------------
+reload_state = {
+    "status": "idle",  # "idle" | "in_progress" | "done" | "error"
+    "count": 0,
+    "error": None,
+}
+reload_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Flask app
+# ---------------------------------------------------------------------------
+app = Flask(__name__)
+
+# Buscar templates en carpetas de cada paquete
+from jinja2 import ChoiceLoader, FileSystemLoader
+app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(os.path.join(app.root_path, "templates")),
+    FileSystemLoader(os.path.join(app.root_path, "P1_dashboard", "templates")),
+    FileSystemLoader(os.path.join(app.root_path, "P2_registros_clinicos", "templates")),
+    FileSystemLoader(os.path.join(app.root_path, "P3_gestion_pacientes", "templates")),
+    FileSystemLoader(os.path.join(app.root_path, "P4_dimensiones", "templates")),
+])
+# ---------------------------------------------------------------------------
+# DB helpers
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def get_db_connection():
+    """Request-scoped psycopg2 connection context manager."""
+    conn = psycopg2.connect(**DB_CONFIG)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def build_where_clause(filters: dict) -> tuple:
+    """
+    Build a parameterized WHERE clause from a filters dict.
+    Only %s placeholders are used — no string interpolation of user values.
+    The column names come from the filters dict keys, which are a controlled
+    set of known column names (not user input), so f"{col} = %s" is safe.
+    Returns (where_string, params_list).
+    """
+    clauses, params = [], []
+    for col, val in filters.items():
+        if val not in (None, ""):
+            clauses.append(f"{col} = %s")
+            params.append(val)
+    if clauses:
+        return "WHERE " + " AND ".join(clauses), params
+    return "", params
+
+
+def set_reload_status(status: str, count: int = 0, error=None) -> None:
+    """Update reload_state under reload_lock."""
+    with reload_lock:
+        reload_state["status"] = status
+        reload_state["count"] = count
+        reload_state["error"] = error
+
+
+# ---------------------------------------------------------------------------
+# Pagination dataclass
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PaginationInfo:
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    has_prev: bool
+    has_next: bool
+    offset: int
+
+
+# ---------------------------------------------------------------------------
+# Expected columns for reload validation
+# ---------------------------------------------------------------------------
+EXPECTED_COLUMNS = {
+    "year",
+    "gender",
+    "age",
+    "location",
+    "race:AfricanAmerican",
+    "race:Asian",
+    "race:Caucasian",
+    "race:Hispanic",
+    "race:Other",
+    "hypertension",
+    "heart_disease",
+    "smoking_history",
+    "bmi",
+    "hbA1c_level",
+    "blood_glucose_level",
+    "diabetes",
+}
+
+# ---------------------------------------------------------------------------
+# Column mapping (CSV → table) — reused by reload_dataset
+# ---------------------------------------------------------------------------
+COLUMN_MAPPING = {
+    "year": "year",
+    "gender": "gender",
+    "age": "age",
+    "location": "location",
+    "race:AfricanAmerican": "race_african_american",
+    "race:Asian": "race_asian",
+    "race:Caucasian": "race_caucasian",
+    "race:Hispanic": "race_hispanic",
+    "race:Other": "race_other",
+    "hypertension": "hypertension",
+    "heart_disease": "heart_disease",
+    "smoking_history": "smoking_history",
+    "bmi": "bmi",
+    "hbA1c_level": "hba1c_level",
+    "blood_glucose_level": "blood_glucose_level",
+    "diabetes": "diabetes",
+}
+
+TABLE_COLUMNS = [
+    "year",
+    "gender",
+    "age",
+    "location",
+    "race_african_american",
+    "race_asian",
+    "race_caucasian",
+    "race_hispanic",
+    "race_other",
+    "hypertension",
+    "heart_disease",
+    "smoking_history",
+    "bmi",
+    "hba1c_level",
+    "blood_glucose_level",
+    "diabetes",
+]
+
+INSERT_SQL = (
+    "INSERT INTO diabetes_clinical ("
+    + ", ".join(TABLE_COLUMNS)
+    + ") VALUES ("
+    + ", ".join(["%s"] * len(TABLE_COLUMNS))
+    + ")"
+)
+
+
+# ---------------------------------------------------------------------------
+# Dataset reloader stub (implemented in task 7.1)
+# ---------------------------------------------------------------------------
+
+
+def reload_dataset() -> None:
+    """Reload dataset from local CSV file."""
+    import pandas as pd
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(base_dir, "dataset", "diabetes_dataset.csv")
+
+    try:
+        if not os.path.exists(csv_path):
+            set_reload_status("error", error=f"Archivo no encontrado: {csv_path}")
+            return
+
+        df = pd.read_csv(csv_path)
+
+        if not EXPECTED_COLUMNS.issubset(set(df.columns)):
+            set_reload_status("error", error="Columnas inválidas en el CSV.")
+            return
+
+        if df.empty:
+            set_reload_status("error", error="El archivo CSV está vacío.")
+            return
+
+        df = df.rename(columns=COLUMN_MAPPING)
+
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE diabetes_clinical RESTART IDENTITY")
+                rows = [tuple(row[col] for col in TABLE_COLUMNS) for _, row in df.iterrows()]
+                for i in range(0, len(rows), BATCH_SIZE):
+                    batch = rows[i:i + BATCH_SIZE]
+                    cur.executemany(INSERT_SQL, batch)
+                conn.commit()
+
+        set_reload_status("done", count=len(df))
+
+    except Exception as e:
+        set_reload_status("error", error=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
+@app.route("/")
+def index():
+    metrics = {}
+    try:
+        ch = get_ch_client()
+        total = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+        con_diabetes = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical WHERE diabetes = 1").result_rows[0][0]
+        con_hipertension = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical WHERE hypertension = 1").result_rows[0][0]
+        con_heart = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical WHERE heart_disease = 1").result_rows[0][0]
+        clinica_top = ch.query("""
+            SELECT c.nombre, COUNT(*) as total
+            FROM diabetcare.diabetes_clinical dc
+            JOIN diabetcare.dim_clinica c ON dc.id_clinica = c.id_clinica
+            GROUP BY c.nombre
+            ORDER BY total DESC
+            LIMIT 1
+        """).result_rows[0]
+        medico_top = ch.query("""
+            SELECT m.nombre, COUNT(*) as total
+            FROM diabetcare.diabetes_clinical dc
+            JOIN diabetcare.dim_medico m ON dc.id_medico = m.id_medico
+            GROUP BY m.nombre
+            ORDER BY total DESC
+            LIMIT 1
+        """).result_rows[0]
+
+        metrics = {
+            "total": total,
+            "con_diabetes": con_diabetes,
+            "pct_diabetes": round(con_diabetes / total * 100, 1) if total else 0,
+            "con_hipertension": con_hipertension,
+            "pct_hipertension": round(con_hipertension / total * 100, 1) if total else 0,
+            "con_heart": con_heart,
+            "pct_heart": round(con_heart / total * 100, 1) if total else 0,
+            "clinica_top": clinica_top[0],
+            "medico_top": medico_top[0],
+        }
+    except Exception as e:
+        app.logger.error(f"Error cargando métricas: {e}")
+
+    return render_template("index.html", metrics=metrics)
+
+
+@app.route("/registros")
+def registros():
+    """GET /registros — Clinical records table with filters and pagination (ClickHouse)."""
+    try:
+        filters = {
+            k: request.args.get(k)
+            for k in ["gender", "diabetes", "hypertension", "smoking_history"]
+        }
+        try:
+            page = max(1, int(request.args.get("page", 1)))
+        except (ValueError, TypeError):
+            page = 1
+        offset = (page - 1) * PAGE_SIZE
+
+        ch = get_ch_client()
+
+        # Construir WHERE para ClickHouse
+        where_clauses = []
+        if filters.get("gender"):
+            where_clauses.append(f"g.genero = '{filters['gender']}'")
+        if filters.get("diabetes"):
+            where_clauses.append(f"dc.diabetes = {filters['diabetes']}")
+        if filters.get("hypertension"):
+            where_clauses.append(f"dc.hypertension = {filters['hypertension']}")
+        if filters.get("smoking_history"):
+            where_clauses.append(f"f.historial = '{filters['smoking_history']}'")
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        base_sql = f"""
+            FROM diabetcare.diabetes_clinical dc
+            JOIN diabetcare.dim_genero g ON dc.id_genero = g.id_genero
+            JOIN diabetcare.dim_ubicacion u ON dc.id_ubicacion = u.id_ubicacion
+            JOIN diabetcare.dim_fumado f ON dc.id_fumado = f.id_fumado
+            JOIN diabetcare.dim_rango_edad r ON dc.id_rango_edad = r.id_rango
+            {where_sql}
+        """
+
+        count_sql = f"SELECT COUNT(*) {base_sql}"
+        data_sql = f"""
+            SELECT dc.id_paciente, dc.year, g.genero, dc.age, u.ubicacion,
+                   dc.hypertension, dc.heart_disease, f.historial,
+                   dc.bmi, dc.hba1c_level, dc.blood_glucose_level, dc.diabetes
+            {base_sql}
+            ORDER BY dc.id_paciente
+            LIMIT {PAGE_SIZE} OFFSET {offset}
+        """
+
+        total_records = ch.query(count_sql).result_rows[0][0]
+        rows = ch.query(data_sql).result_rows
+
+        columns = ["id_paciente", "year", "gender", "age", "location",
+                   "hypertension", "heart_disease", "smoking_history",
+                   "bmi", "hba1c_level", "blood_glucose_level", "diabetes"]
+        records = [dict(zip(columns, row)) for row in rows]
+
+        # Dropdown options desde ClickHouse
+        dropdown_options = {
+            "gender": [r[0] for r in ch.query("SELECT DISTINCT genero FROM diabetcare.dim_genero ORDER BY genero").result_rows],
+            "diabetes": [r[0] for r in ch.query("SELECT DISTINCT diabetes FROM diabetcare.diabetes_clinical ORDER BY diabetes").result_rows],
+            "hypertension": [r[0] for r in ch.query("SELECT DISTINCT hypertension FROM diabetcare.diabetes_clinical ORDER BY hypertension").result_rows],
+            "smoking_history": [r[0] for r in ch.query("SELECT DISTINCT historial FROM diabetcare.dim_fumado ORDER BY historial").result_rows],
+        }
+
+        total_pages = max(1, math.ceil(total_records / PAGE_SIZE))
+        pagination = PaginationInfo(
+            page=page,
+            page_size=PAGE_SIZE,
+            total_records=total_records,
+            total_pages=total_pages,
+            has_prev=page > 1,
+            has_next=page < total_pages,
+            offset=offset,
+        )
+
+        return render_template(
+            "registros.html",
+            records=records,
+            pagination=pagination,
+            dropdown_options=dropdown_options,
+            active_filters=filters,
+            reload_state=reload_state,
+        )
+
+    except Exception as e:
+        app.logger.error(f"Error recuperando registros clínicos: {e}")
+        return render_template(
+            "registros.html",
+            error=f"Los registros no pudieron recuperarse: {str(e)}",
+            records=[],
+            pagination=None,
+            dropdown_options={},
+            active_filters={},
+            reload_state=reload_state,
+        )
+
+
+@app.route("/reload", methods=["POST", "GET"])
+def reload():
+    """POST /reload — Start dataset reload in a background thread."""
+    with reload_lock:
+        if reload_state["status"] == "in_progress":
+            return jsonify({"status": "in_progress"}), 409
+        set_reload_status("in_progress")
+    thread = threading.Thread(target=reload_dataset, daemon=True)
+    thread.start()
+    return jsonify({"status": "in_progress"}), 202
+
+
+@app.route("/reload/status")
+def reload_status_endpoint():
+    """GET /reload/status — Return current reload state as JSON."""
+    return jsonify(reload_state)
+
+# ─────────────────────────────────────────
+# CRUD - DIMENSIONES
+# ─────────────────────────────────────────
+
+@app.route('/dimensiones')
+def dimensiones():
+    ch = get_ch_client()
+    generos = ch.query("SELECT * FROM diabetcare.dim_genero ORDER BY id_genero").result_rows
+    ubicaciones = ch.query("SELECT * FROM diabetcare.dim_ubicacion ORDER BY id_ubicacion").result_rows
+    fumados = ch.query("SELECT * FROM diabetcare.dim_fumado ORDER BY id_fumado").result_rows
+    rangos = ch.query("SELECT * FROM diabetcare.dim_rango_edad ORDER BY id_rango").result_rows
+    razas = ch.query("SELECT * FROM diabetcare.dim_raza ORDER BY id_raza").result_rows
+    anios = ch.query("SELECT * FROM diabetcare.dim_anio ORDER BY id_anio").result_rows
+    niveles_glucosa = ch.query("SELECT * FROM diabetcare.dim_nivel_glucosa ORDER BY id_nivel").result_rows
+    niveles_bmi = ch.query("SELECT * FROM diabetcare.dim_nivel_bmi ORDER BY id_nivel").result_rows
+    niveles_hba1c = ch.query("SELECT * FROM diabetcare.dim_nivel_hba1c ORDER BY id_nivel").result_rows
+    clinicas = ch.query("SELECT * FROM diabetcare.dim_clinica ORDER BY id_clinica").result_rows
+    medicos = ch.query("SELECT * FROM diabetcare.dim_medico ORDER BY id_medico").result_rows
+    tipos_diabetes = ch.query("SELECT * FROM diabetcare.dim_tipo_diabetes ORDER BY id_tipo").result_rows
+
+    return render_template('dimensiones.html',
+                           generos=generos,
+                           ubicaciones=ubicaciones,
+                           fumados=fumados,
+                           rangos=rangos,
+                           razas=razas,
+                           anios=anios,
+                           niveles_glucosa=niveles_glucosa,
+                           niveles_bmi=niveles_bmi,
+                           niveles_hba1c=niveles_hba1c,
+                           clinicas=clinicas,
+                           medicos=medicos,
+                           tipos_diabetes=tipos_diabetes)
+
+# ─────────────────────────────────────────
+# CRUD - FACT PACIENTES
+# ─────────────────────────────────────────
+
+@app.route('/fact')
+def fact_pacientes():
+    ch = get_ch_client()
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except:
+        page = 1
+    offset = (page - 1) * 100
+
+    total = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+    rows = ch.query(f"""
+        SELECT f.id_paciente, g.genero, u.ubicacion, fm.historial,
+               r.descripcion, f.age, f.bmi, f.hba1c_level,
+               f.blood_glucose_level, f.hypertension, f.heart_disease, f.diabetes
+        FROM diabetcare.diabetes_clinical f
+        JOIN diabetcare.dim_genero g ON f.id_genero = g.id_genero
+        JOIN diabetcare.dim_ubicacion u ON f.id_ubicacion = u.id_ubicacion
+        JOIN diabetcare.dim_fumado fm ON f.id_fumado = fm.id_fumado
+        JOIN diabetcare.dim_rango_edad r ON f.id_rango_edad = r.id_rango
+        ORDER BY f.id_paciente
+        LIMIT 100 OFFSET {offset}
+    """).result_rows
+
+    total_pages = max(1, -(-total // 100))
+    generos = ch.query("SELECT * FROM diabetcare.dim_genero").result_rows
+    ubicaciones = ch.query("SELECT * FROM diabetcare.dim_ubicacion").result_rows
+    fumados = ch.query("SELECT * FROM diabetcare.dim_fumado").result_rows
+    rangos = ch.query("SELECT * FROM diabetcare.dim_rango_edad").result_rows
+
+    return render_template('fact.html',
+                           rows=rows,
+                           page=page,
+                           total=total,
+                           total_pages=total_pages,
+                           generos=generos,
+                           ubicaciones=ubicaciones,
+                           fumados=fumados,
+                           rangos=rangos)
+
+@app.route('/fact/crear', methods=['POST'])
+def fact_crear():
+    ch = get_ch_client()
+    total = ch.query("SELECT MAX(id_paciente) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+    nuevo_id = (total or 0) + 1
+
+    id_genero = int(request.form['id_genero'])
+    id_ubicacion = int(request.form['id_ubicacion'])
+    id_fumado = int(request.form['id_fumado'])
+    id_rango_edad = int(request.form['id_rango_edad'])
+    age = float(request.form['age'])
+    bmi = float(request.form['bmi'])
+    hba1c = float(request.form['hba1c_level'])
+    glucosa = int(request.form['blood_glucose_level'])
+    hypertension = int(request.form['hypertension'])
+    heart_disease = int(request.form['heart_disease'])
+    diabetes = int(request.form['diabetes'])
+    year = int(request.form['year'])
+
+    # Calcular IDs derivados
+    id_raza = int(request.form.get('id_raza', 5))
+    id_anio = ch.query(f"SELECT id_anio FROM diabetcare.dim_anio WHERE anio = {year} LIMIT 1").result_rows
+    id_anio = id_anio[0][0] if id_anio else 1
+    id_nivel_glucosa = 1 if glucosa < 100 else 2 if glucosa < 126 else 3 if glucosa < 200 else 4
+    id_nivel_bmi = 1 if bmi < 18.5 else 2 if bmi < 25 else 3 if bmi < 30 else 4
+    id_nivel_hba1c = 1 if hba1c < 5.7 else 2 if hba1c < 6.5 else 3
+    id_clinica = int(request.form.get('id_clinica', 1))
+    id_medico = int(request.form.get('id_medico', 1))
+    id_tipo = 1 if diabetes == 0 and hba1c < 5.7 and glucosa < 100 else 2 if diabetes == 0 else 3
+
+    ch.insert("diabetcare.diabetes_clinical", [[
+        nuevo_id, id_genero, id_ubicacion, id_fumado, id_rango_edad,
+        id_raza, id_anio, id_nivel_glucosa, id_nivel_bmi, id_nivel_hba1c,
+        id_clinica, id_medico, id_tipo,
+        age, bmi, hba1c, glucosa, hypertension, heart_disease, diabetes, year
+    ]], column_names=[
+        "id_paciente", "id_genero", "id_ubicacion", "id_fumado", "id_rango_edad",
+        "id_raza", "id_anio", "id_nivel_glucosa", "id_nivel_bmi", "id_nivel_hba1c",
+        "id_clinica", "id_medico", "id_tipo_diabetes",
+        "age", "bmi", "hba1c_level", "blood_glucose_level",
+        "hypertension", "heart_disease", "diabetes", "year"
+    ])
+    return redirect('/fact')
+
+@app.route('/fact/eliminar/<int:id_paciente>', methods=['POST'])
+def fact_eliminar(id_paciente):
+    ch = get_ch_client()
+    ch.command(f"ALTER TABLE diabetcare.diabetes_clinical DELETE WHERE id_paciente = {id_paciente}")
+    return redirect('/fact')
+
+@app.route('/pacientes')
+def pacientes():
+    ch = get_ch_client()
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except:
+        page = 1
+    offset = (page - 1) * 100
+
+    total = ch.query("SELECT COUNT(*) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+    rows = ch.query(f"""
+        SELECT dc.id_paciente, g.genero, u.ubicacion, f.historial,
+               r.descripcion, dc.age, dc.bmi, dc.hba1c_level,
+               dc.blood_glucose_level, dc.hypertension, dc.heart_disease, dc.diabetes,
+               c.nombre, m.nombre
+        FROM diabetcare.diabetes_clinical dc
+        JOIN diabetcare.dim_genero g ON dc.id_genero = g.id_genero
+        JOIN diabetcare.dim_ubicacion u ON dc.id_ubicacion = u.id_ubicacion
+        JOIN diabetcare.dim_fumado f ON dc.id_fumado = f.id_fumado
+        JOIN diabetcare.dim_rango_edad r ON dc.id_rango_edad = r.id_rango
+        JOIN diabetcare.dim_clinica c ON dc.id_clinica = c.id_clinica
+        JOIN diabetcare.dim_medico m ON dc.id_medico = m.id_medico
+        ORDER BY dc.id_paciente
+        LIMIT 100 OFFSET {offset}
+    """).result_rows
+
+    generos = ch.query("SELECT * FROM diabetcare.dim_genero").result_rows
+    ubicaciones = ch.query("SELECT * FROM diabetcare.dim_ubicacion").result_rows
+    fumados = ch.query("SELECT * FROM diabetcare.dim_fumado").result_rows
+    rangos = ch.query("SELECT * FROM diabetcare.dim_rango_edad").result_rows
+    razas = ch.query("SELECT * FROM diabetcare.dim_raza").result_rows
+    clinicas = ch.query("SELECT * FROM diabetcare.dim_clinica").result_rows
+    medicos = ch.query("SELECT * FROM diabetcare.dim_medico").result_rows
+    anios = ch.query("SELECT anio FROM diabetcare.dim_anio ORDER BY anio").result_rows
+
+    total_pages = max(1, -(-total // 100))
+
+    return render_template('pacientes.html',
+                           rows=rows,
+                           page=page,
+                           total=total,
+                           total_pages=total_pages,
+                           generos=generos,
+                           ubicaciones=ubicaciones,
+                           fumados=fumados,
+                           rangos=rangos,
+                           razas=razas,
+                           clinicas=clinicas,
+                           medicos=medicos,
+                           anios=anios)
+
+@app.route('/pacientes/crear', methods=['POST'])
+def pacientes_crear():
+    ch = get_ch_client()
+    total = ch.query("SELECT MAX(id_paciente) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+    nuevo_id = (total or 0) + 1
+
+    id_genero = int(request.form['id_genero'])
+    id_ubicacion = int(request.form['id_ubicacion'])
+    id_fumado = int(request.form['id_fumado'])
+    id_rango_edad = int(request.form['id_rango_edad'])
+    id_raza = int(request.form['id_raza'])
+    id_clinica = int(request.form['id_clinica'])
+    id_medico = int(request.form['id_medico'])
+    age = float(request.form['age'])
+    bmi = float(request.form['bmi'])
+    hba1c = float(request.form['hba1c_level'])
+    glucosa = int(request.form['blood_glucose_level'])
+    hypertension = int(request.form['hypertension'])
+    heart_disease = int(request.form['heart_disease'])
+    diabetes = int(request.form['diabetes'])
+    year = int(request.form['year'])
+
+    id_anio = ch.query(f"SELECT id_anio FROM diabetcare.dim_anio WHERE anio = {year} LIMIT 1").result_rows
+    id_anio = id_anio[0][0] if id_anio else 1
+    id_nivel_glucosa = 1 if glucosa < 100 else 2 if glucosa < 126 else 3 if glucosa < 200 else 4
+    id_nivel_bmi = 1 if bmi < 18.5 else 2 if bmi < 25 else 3 if bmi < 30 else 4
+    id_nivel_hba1c = 1 if hba1c < 5.7 else 2 if hba1c < 6.5 else 3
+    id_tipo = 1 if diabetes == 0 and hba1c < 5.7 and glucosa < 100 else 2 if diabetes == 0 else 3
+
+    ch.insert("diabetcare.diabetes_clinical", [[
+        nuevo_id, id_genero, id_ubicacion, id_fumado, id_rango_edad,
+        id_raza, id_anio, id_nivel_glucosa, id_nivel_bmi, id_nivel_hba1c,
+        id_clinica, id_medico, id_tipo,
+        age, bmi, hba1c, glucosa, hypertension, heart_disease, diabetes, year
+    ]], column_names=[
+        "id_paciente", "id_genero", "id_ubicacion", "id_fumado", "id_rango_edad",
+        "id_raza", "id_anio", "id_nivel_glucosa", "id_nivel_bmi", "id_nivel_hba1c",
+        "id_clinica", "id_medico", "id_tipo_diabetes",
+        "age", "bmi", "hba1c_level", "blood_glucose_level",
+        "hypertension", "heart_disease", "diabetes", "year"
+    ])
+    return redirect('/pacientes')
+
+@app.route('/pacientes/masivo', methods=['POST'])
+def pacientes_masivo():
+    import subprocess
+    import sys
+    cantidad = int(request.form.get('cantidad', 100000))
+    subprocess.Popen([sys.executable, 'generar_registros.py', str(cantidad)])
+    return redirect('/pacientes')
+
+@app.route('/pacientes/eliminar/<int:id_paciente>', methods=['POST'])
+def pacientes_eliminar(id_paciente):
+    ch = get_ch_client()
+    ch.command(f"ALTER TABLE diabetcare.diabetes_clinical DELETE WHERE id_paciente = {id_paciente}")
+    return redirect('/pacientes')
+
+@app.route('/pacientes/eliminar-masivo', methods=['POST'])
+def pacientes_eliminar_masivo():
+    ch = get_ch_client()
+    cantidad = int(request.form.get('cantidad', 100000))
+    total = ch.query("SELECT MAX(id_paciente) FROM diabetcare.diabetes_clinical").result_rows[0][0]
+    desde = (total or 0) - cantidad + 1
+    if desde < 1:
+        desde = 1
+    ch.command(f"ALTER TABLE diabetcare.diabetes_clinical DELETE WHERE id_paciente >= {desde}")
+    return redirect('/pacientes')
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)

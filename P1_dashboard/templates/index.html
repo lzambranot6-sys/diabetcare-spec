@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DiabetCare S.A.{% endblock %}
+{% block content %}
+
+<!-- HEADER -->
+<div style="margin-bottom: 30px;">
+  <h1 style="color: var(--color-primary); font-size: 32px; margin-bottom: 5px;">Dashboard</h1>
+  <p style="color: #666; font-size: 14px;">Sistema de Gestión Clínica — DiabetCare S.A.</p>
+</div>
+
+<!-- MÉTRICAS PRINCIPALES -->
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
+
+  <div class="metric-card">
+    <span class="metric-icon">🧑‍⚕️</span>
+    <div class="metric-value">{{ "{:,}".format(metrics.get('total', 0)) }}</div>
+    <div class="metric-label">Total Pacientes</div>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-icon">🩸</span>
+    <div class="metric-value">{{ metrics.get('pct_diabetes', 0) }}%</div>
+    <div class="metric-label">Con Diabetes</div>
+    <div class="metric-sub">{{ "{:,}".format(metrics.get('con_diabetes', 0)) }} pacientes</div>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-icon">❤️</span>
+    <div class="metric-value">{{ metrics.get('pct_hipertension', 0) }}%</div>
+    <div class="metric-label">Con Hipertensión</div>
+    <div class="metric-sub">{{ "{:,}".format(metrics.get('con_hipertension', 0)) }} pacientes</div>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-icon">🫀</span>
+    <div class="metric-value">{{ metrics.get('pct_heart', 0) }}%</div>
+    <div class="metric-label">Enf. Cardíaca</div>
+    <div class="metric-sub">{{ "{:,}".format(metrics.get('con_heart', 0)) }} pacientes</div>
+  </div>
+
+</div>
+
+<!-- INFO CARDS -->
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; justify-items: center;">
+
+  <div class="card">
+    <h3>🏥 Clínica con más pacientes</h3>
+    <p style="font-size: 20px; color: var(--color-primary); margin-top: 10px;">{{ metrics.get('clinica_top', 'N/D') }}</p>
+  </div>
+
+  <div class="card">
+    <h3>👨‍⚕️ Médico con más pacientes</h3>
+    <p style="font-size: 20px; color: var(--color-primary); margin-top: 10px;">{{ metrics.get('medico_top', 'N/D') }}</p>
+  </div>
+
+</div>
+
+<!-- ACCESOS RÁPIDOS -->
+<h2 style="color: var(--color-primary); margin-bottom: 15px; font-size: 20px;">Accesos Rápidos</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+
+  <a href="/registros" class="quick-card">
+    <span style="font-size: 28px;">📋</span>
+    <span>Registros Clínicos</span>
+    <span style="font-size: 12px; color: #666;">Ver y filtrar pacientes</span>
+  </a>
+
+  <a href="/pacientes" class="quick-card">
+    <span style="font-size: 28px;">➕</span>
+    <span>Gestión de Pacientes</span>
+    <span style="font-size: 12px; color: #666;">Agregar y eliminar</span>
+  </a>
+
+  <a href="/dimensiones" class="quick-card">
+    <span style="font-size: 28px;">📐</span>
+    <span>Dimensiones</span>
+    <span style="font-size: 12px; color: #666;">Catálogos del sistema</span>
+  </a>
+
+</div>
+
+{% endblock %}

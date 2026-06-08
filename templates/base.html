@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DiabetCare S.A.{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a class="nav-brand" href="/">DiabetCare S.A.</a>
+    <ul class="nav-links">
+      <li><a href="/">Inicio</a></li>
+      <li><a href="/registros">Registros Clínicos</a></li>
+      <li><a href="/pacientes">Gestión de Pacientes</a></li>
+      <li><a href="/dimensiones">Dimensiones</a></li>
+    </ul>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <p>&copy; DiabetCare S.A.</p>
+  </footer>
+</body>
+</html>
