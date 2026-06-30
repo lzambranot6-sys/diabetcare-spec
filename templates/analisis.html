@@ -116,9 +116,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script id="analisis-data" type="application/json">{{ {'compare': chart_compare, 'paciente': paciente} | tojson }}</script>
 <script>
-const compare = {{ chart_compare | tojson }};
-const paciente = {{ paciente | tojson }};
+const analisisData = JSON.parse(document.getElementById('analisis-data').textContent);
+const compare = analisisData.compare;
+const paciente = analisisData.paciente;
 const neon = '#00ff88';
 const neonDim = 'rgba(0, 255, 136, 0.6)';
 const gray = 'rgba(150, 150, 150, 0.5)';

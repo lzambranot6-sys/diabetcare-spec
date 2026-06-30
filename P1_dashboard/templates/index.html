@@ -118,8 +118,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script id="chart-data" type="application/json">{{ chart_data | tojson }}</script>
 <script>
-const chartData = {{ chart_data | tojson }};
+const chartData = JSON.parse(document.getElementById('chart-data').textContent);
 const neonGreen = '#00ff88';
 const neonGreenDim = 'rgba(0, 255, 136, 0.6)';
 const chartDefaults = {

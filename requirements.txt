@@ -1,6 +1,7 @@
 flask
 flask-login
 clickhouse-connect
-psycopg2-binary
 pandas
+numpy
 werkzeug
+psycopg2-binary
