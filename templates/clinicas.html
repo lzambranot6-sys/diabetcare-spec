@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Clínicas — DiabetCare S.A.{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+  <h1 style="color: var(--color-primary); font-size: 28px;">Gestión de Clínicas</h1>
+  <a href="/" class="btn-volver">← Volver</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 25px; margin-bottom: 20px;">
+  <h3 style="color: var(--color-primary); margin-bottom: 15px;">➕ Nueva Clínica</h3>
+  <form method="post" action="/clinicas/crear" class="crud-form">
+    <div class="form-group-inline">
+      <label>Nombre</label>
+      <input type="text" name="nombre" required placeholder="Ej: DiabetCare Centro">
+    </div>
+    <div class="form-group-inline">
+      <label>Ciudad</label>
+      <input type="text" name="ciudad" required placeholder="Ej: Guayaquil">
+    </div>
+    <button type="submit" class="btn-primary">Agregar</button>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Ciudad</th>
+        <th>Pacientes</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in clinicas %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>
+          <form method="post" action="/clinicas/editar/{{ row.id }}" class="inline-edit-form">
+            <input type="text" name="nombre" value="{{ row.nombre }}" required>
+        </td>
+        <td>
+            <input type="text" name="ciudad" value="{{ row.ciudad }}" required>
+        </td>
+        <td>{{ row.pacientes }}</td>
+        <td class="action-cell">
+            <button type="submit" class="btn-small btn-edit">Guardar</button>
+          </form>
+          <form method="post" action="/clinicas/eliminar/{{ row.id }}" style="display:inline;"
+                onsubmit="return confirm('¿Eliminar esta clínica?');">
+            <button type="submit" class="btn-small btn-delete">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center; color:#666;">No hay clínicas registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

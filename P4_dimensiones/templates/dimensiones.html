@@ -7,6 +7,12 @@
   <a href="/" class="btn-volver">← Volver</a>
 </div>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
 <!-- DIM GENERO -->
 <h2 class="section-title">Géneros</h2>
 <div class="table-wrapper" style="margin-bottom: 30px;">
@@ -21,7 +27,12 @@
 </div>
 
 <!-- DIM UBICACION -->
-<h2 class="section-title">Ubicaciones</h2>
+<div class="section-header">
+  <h2 class="section-title">Ubicaciones</h2>
+  {% if can_admin %}
+  <button type="button" class="btn-primary btn-small" onclick="abrirModal('modal-ubicacion')">+ Agregar</button>
+  {% endif %}
+</div>
 <div class="table-wrapper" style="margin-bottom: 30px;">
   <table>
     <thead><tr><th>ID</th><th>Ubicación</th></tr></thead>
@@ -60,7 +71,12 @@
 </div>
 
 <!-- DIM RAZA -->
-<h2 class="section-title">Razas</h2>
+<div class="section-header">
+  <h2 class="section-title">Razas</h2>
+  {% if can_admin %}
+  <button type="button" class="btn-primary btn-small" onclick="abrirModal('modal-raza')">+ Agregar</button>
+  {% endif %}
+</div>
 <div class="table-wrapper" style="margin-bottom: 30px;">
   <table>
     <thead><tr><th>ID</th><th>Raza</th></tr></thead>
@@ -162,5 +178,52 @@
     </tbody>
   </table>
 </div>
+
+{% if can_admin %}
+<!-- MODAL UBICACION -->
+<div class="modal-overlay" id="modal-ubicacion">
+  <div class="modal-box">
+    <h3>➕ Agregar Ubicación</h3>
+    <form method="post" action="/dimensiones/ubicacion/crear">
+      <div class="form-group" style="margin: 20px 0;">
+        <label style="color: var(--color-primary); font-size: 13px;">Nombre de la ubicación</label>
+        <input type="text" name="ubicacion" required placeholder="Ej: Puerto Rico"
+               style="width:100%; padding:10px; margin-top:6px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:white;">
+      </div>
+      <div class="modal-buttons">
+        <button type="button" class="btn-cancel" onclick="cerrarModal('modal-ubicacion')">Cancelar</button>
+        <button type="submit" class="btn-confirm">Agregar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL RAZA -->
+<div class="modal-overlay" id="modal-raza">
+  <div class="modal-box">
+    <h3>➕ Agregar Raza</h3>
+    <form method="post" action="/dimensiones/raza/crear">
+      <div class="form-group" style="margin: 20px 0;">
+        <label style="color: var(--color-primary); font-size: 13px;">Nombre de la raza</label>
+        <input type="text" name="raza" required placeholder="Ej: Native American"
+               style="width:100%; padding:10px; margin-top:6px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:white;">
+      </div>
+      <div class="modal-buttons">
+        <button type="button" class="btn-cancel" onclick="cerrarModal('modal-raza')">Cancelar</button>
+        <button type="submit" class="btn-confirm">Agregar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function abrirModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function cerrarModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+</script>
+{% endif %}
 
 {% endblock %}

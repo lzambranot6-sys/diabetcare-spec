@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Análisis de Paciente — DiabetCare S.A.{% endblock %}
+{% block content %}
+
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+  <div>
+    <h1 style="color: var(--color-primary); font-size: 28px;">Análisis Clínico</h1>
+    <p style="color: #666; font-size: 14px; margin-top: 5px;">
+      Perfil detallado del paciente con indicadores y comparación poblacional
+    </p>
+  </div>
+  <a href="/" class="btn-volver">← Volver</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+
+<!-- BUSCADOR -->
+<div class="analysis-search-card">
+  <form method="get" action="/analisis" class="analysis-search-form">
+    <div class="form-group-inline">
+      <label>ID del Paciente</label>
+      <div class="id-input-group">
+        <input type="number" name="paciente" id="input-paciente-id" value="{{ paciente_id }}" min="1"
+               placeholder="Ej: 12345">
+        <button type="button" class="btn-reload" onclick="abrirBuscarPaciente()">🔍 Buscar</button>
+      </div>
+    </div>
+    <button type="submit" class="btn-primary">Analizar</button>
+  </form>
+</div>
+
+{% if paciente %}
+
+<!-- ALERTAS -->
+<div class="alertas-grid">
+  {% for nivel, titulo, mensaje in alertas %}
+  <div class="alerta-card alerta-{{ nivel }}">
+    <strong>{{ titulo }}</strong>
+    <p>{{ mensaje }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- PERFIL -->
+<div class="analysis-profile-grid">
+  <div class="card analysis-profile-card">
+    <div class="profile-header-row">
+      <h3>👤 Perfil del Paciente #{{ paciente.id }}</h3>
+      <button type="button" class="btn-reload btn-cambiar-paciente" onclick="abrirBuscarPaciente()">
+        Cambiar paciente
+      </button>
+    </div>
+    <div class="profile-grid">
+      <div><span class="profile-label">Género</span><span>{{ paciente.genero }}</span></div>
+      <div><span class="profile-label">Edad</span><span>{{ paciente.edad }} años ({{ paciente.rango_edad }})</span></div>
+      <div><span class="profile-label">Ubicación</span><span>{{ paciente.ubicacion }}</span></div>
+      <div><span class="profile-label">Raza</span><span>{{ paciente.raza }}</span></div>
+      <div><span class="profile-label">Clínica</span><span>{{ paciente.clinica }}</span></div>
+      <div><span class="profile-label">Médico</span><span>{{ paciente.medico }}</span></div>
+      <div><span class="profile-label">Tipo Diabetes</span><span>{{ paciente.tipo_diabetes }}</span></div>
+      <div><span class="profile-label">Tabaquismo</span><span>{{ paciente.fumado }}</span></div>
+      <div><span class="profile-label">Año registro</span><span>{{ paciente.year }}</span></div>
+      <div><span class="profile-label">Hipertensión</span><span>{{ 'Sí' if paciente.hipertension else 'No' }}</span></div>
+      <div><span class="profile-label">Enf. Cardíaca</span><span>{{ 'Sí' if paciente.heart_disease else 'No' }}</span></div>
+      <div><span class="profile-label">Diabetes</span><span>{{ 'Sí' if paciente.diabetes else 'No' }}</span></div>
+    </div>
+  </div>
+
+  <div class="card indicadores-card">
+    <h3>📊 Indicadores Clave</h3>
+    <div class="indicadores-grid">
+      <div class="indicador indicador-{{ paciente.gluc_status }}">
+        <span class="indicador-valor">{{ paciente.glucosa }}</span>
+        <span class="indicador-unidad">mg/dL</span>
+        <span class="indicador-nombre">Glucosa</span>
+        <span class="indicador-estado">{{ paciente.gluc_label }}</span>
+      </div>
+      <div class="indicador indicador-{{ paciente.hba_status }}">
+        <span class="indicador-valor">{{ paciente.hba1c }}</span>
+        <span class="indicador-unidad">%</span>
+        <span class="indicador-nombre">HbA1c</span>
+        <span class="indicador-estado">{{ paciente.hba_label }}</span>
+      </div>
+      <div class="indicador indicador-{{ paciente.bmi_status }}">
+        <span class="indicador-valor">{{ paciente.bmi }}</span>
+        <span class="indicador-unidad">kg/m²</span>
+        <span class="indicador-nombre">IMC (BMI)</span>
+        <span class="indicador-estado">{{ paciente.bmi_label }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GRÁFICAS -->
+<h2 style="color: var(--color-primary); margin: 25px 0 15px; font-size: 20px;">Visualización Clínica</h2>
+<div class="charts-grid">
+  <div class="chart-card">
+    <h3>Comparación vs. Población</h3>
+    <p style="color:#666; font-size:12px; margin-bottom:10px;">Paciente (verde) frente al promedio poblacional (gris)</p>
+    <canvas id="chartComparacion"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Perfil de Riesgo</h3>
+    <p style="color:#666; font-size:12px; margin-bottom:10px;">Normalizado respecto a rangos clínicos de referencia</p>
+    <canvas id="chartRadar"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Clasificación de Glucosa</h3>
+    <p style="color:#666; font-size:12px; margin-bottom:10px;">Zonas: Normal (&lt;100) · Prediabetes (100-125) · Diabetes (126+)</p>
+    <canvas id="chartGlucosa"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const compare = {{ chart_compare | tojson }};
+const paciente = {{ paciente | tojson }};
+const neon = '#00ff88';
+const neonDim = 'rgba(0, 255, 136, 0.6)';
+const gray = 'rgba(150, 150, 150, 0.5)';
+
+new Chart(document.getElementById('chartComparacion'), {
+  type: 'bar',
+  data: {
+    labels: compare.labels,
+    datasets: [
+      { label: 'Paciente', data: compare.paciente, backgroundColor: neonDim, borderColor: neon, borderWidth: 1 },
+      { label: 'Promedio población', data: compare.poblacion, backgroundColor: gray, borderColor: '#888', borderWidth: 1 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#e0e0e0' } } },
+    scales: {
+      x: { ticks: { color: '#aaa' }, grid: { color: '#222' } },
+      y: { ticks: { color: '#aaa' }, grid: { color: '#222' }, beginAtZero: true }
+    }
+  }
+});
+
+const radarNorm = [
+  Math.min(paciente.glucosa / 200 * 100, 100),
+  Math.min(paciente.hba1c / 10 * 100, 100),
+  Math.min(paciente.bmi / 40 * 100, 100),
+  paciente.hipertension ? 80 : 20,
+  paciente.heart_disease ? 90 : 15,
+  paciente.diabetes ? 85 : 15
+];
+
+new Chart(document.getElementById('chartRadar'), {
+  type: 'radar',
+  data: {
+    labels: ['Glucosa', 'HbA1c', 'IMC', 'Hipertensión', 'Cardíaco', 'Diabetes'],
+    datasets: [{
+      label: 'Perfil de riesgo',
+      data: radarNorm,
+      backgroundColor: 'rgba(0, 255, 136, 0.2)',
+      borderColor: neon,
+      pointBackgroundColor: neon
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      r: {
+        beginAtZero: true, max: 100,
+        ticks: { color: '#aaa', backdropColor: 'transparent' },
+        grid: { color: '#333' },
+        pointLabels: { color: '#e0e0e0' }
+      }
+    },
+    plugins: { legend: { labels: { color: '#e0e0e0' } } }
+  }
+});
+
+const gluc = paciente.glucosa;
+new Chart(document.getElementById('chartGlucosa'), {
+  type: 'bar',
+  data: {
+    labels: ['Paciente', 'Normal (<100)', 'Prediabetes', 'Diabetes (126+)'],
+    datasets: [{
+      label: 'mg/dL',
+      data: [gluc, 90, 112, 160],
+      backgroundColor: [
+        gluc < 100 ? neonDim : gluc < 126 ? 'rgba(255,200,0,0.6)' : gluc < 200 ? 'rgba(255,100,0,0.6)' : 'rgba(255,68,68,0.6)',
+        'rgba(0,255,136,0.3)', 'rgba(255,200,0,0.3)', 'rgba(255,100,0,0.3)'
+      ],
+      borderColor: [neon, '#00ff88', '#ffc800', '#ff6400'],
+      borderWidth: 1
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#aaa' }, grid: { color: '#222' } },
+      y: { ticks: { color: '#aaa' }, grid: { color: '#222' }, beginAtZero: true, title: { display: true, text: 'mg/dL', color: '#888' } }
+    }
+  }
+});
+</script>
+
+{% elif paciente_id %}
+<p style="color: #888; text-align: center; margin-top: 40px;">No se encontraron datos para analizar.</p>
+{% else %}
+<div class="card analysis-empty-card" style="text-align: center; padding: 50px; margin-top: 20px;">
+  <span style="font-size: 48px;">🔬</span>
+  <h3 style="color: var(--color-primary); margin: 15px 0 10px;">Selecciona un paciente</h3>
+  <p style="color: #666;">Ingresa el ID o usa el buscador para encontrar un paciente con filtros.</p>
+  <button type="button" class="btn-primary" style="margin-top: 20px;" onclick="abrirBuscarPaciente()">
+    🔍 Buscar Paciente
+  </button>
+  <p style="color: #555; font-size: 12px; margin-top: 15px;">
+    Promedio poblacional — Glucosa: {{ poblacion.glucosa }} mg/dL ·
+    HbA1c: {{ poblacion.hba1c }}% · IMC: {{ poblacion.bmi }} ·
+    {{ poblacion.pct_diabetes }}% con diabetes
+  </p>
+</div>
+{% endif %}
+
+<!-- MODAL BUSCAR PACIENTE -->
+<div class="modal-overlay" id="modal-buscar-paciente">
+  <div class="modal-box modal-wide">
+    <div class="modal-wide-header">
+      <h3>🔍 Buscar Paciente</h3>
+      <button type="button" class="modal-close-btn" onclick="cerrarBuscarPaciente()">✕</button>
+    </div>
+
+    <form id="form-buscar-paciente" class="filter-form" style="margin-bottom: 15px;">
+      <label>ID Paciente</label>
+      <input type="text" name="q" id="buscar-q" placeholder="Ej: 900001" style="padding:8px 12px; border-radius:8px; border:1px solid #333; background:#1a1a1a; color:white; width:120px;">
+
+      <label>Género</label>
+      <select name="gender" id="buscar-gender">
+        <option value="">Todos</option>
+        {% for opt in dropdown_options.get('gender', []) %}
+        <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+
+      <label>Diabetes</label>
+      <select name="diabetes" id="buscar-diabetes">
+        <option value="">Todos</option>
+        <option value="1">Sí</option>
+        <option value="0">No</option>
+      </select>
+
+      <label>Hipertensión</label>
+      <select name="hypertension" id="buscar-hypertension">
+        <option value="">Todos</option>
+        <option value="1">Sí</option>
+        <option value="0">No</option>
+      </select>
+
+      <label>Tabaquismo</label>
+      <select name="smoking_history" id="buscar-smoking">
+        <option value="">Todos</option>
+        {% for opt in dropdown_options.get('smoking_history', []) %}
+        <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="submit">Filtrar</button>
+    </form>
+
+    <p class="total-records" id="buscar-total">Cargando...</p>
+
+    <div class="table-wrapper modal-table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Género</th>
+            <th>Edad</th>
+            <th>Ubicación</th>
+            <th>Glucosa</th>
+            <th>HbA1c</th>
+            <th>BMI</th>
+            <th>Diabetes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="buscar-tbody">
+          <tr><td colspan="9" style="text-align:center;color:#666;">Use los filtros para buscar pacientes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination" id="buscar-pagination" style="margin-top: 15px;"></div>
+  </div>
+</div>
+
+<script>
+let buscarPage = 1;
+
+function abrirBuscarPaciente() {
+  document.getElementById('modal-buscar-paciente').classList.add('active');
+  const idInput = document.getElementById('input-paciente-id');
+  if (idInput && idInput.value) {
+    document.getElementById('buscar-q').value = idInput.value;
+  }
+  buscarPage = 1;
+  cargarPacientes();
+}
+
+function cerrarBuscarPaciente() {
+  document.getElementById('modal-buscar-paciente').classList.remove('active');
+}
+
+function seleccionarPaciente(id) {
+  window.location.href = '/analisis?paciente=' + id;
+}
+
+function cargarPacientes(page) {
+  buscarPage = page || buscarPage;
+  const form = document.getElementById('form-buscar-paciente');
+  const params = new URLSearchParams(new FormData(form));
+  params.set('page', buscarPage);
+
+  document.getElementById('buscar-total').textContent = 'Cargando...';
+  document.getElementById('buscar-tbody').innerHTML =
+    '<tr><td colspan="9" style="text-align:center;color:#666;">Cargando...</td></tr>';
+
+  fetch('/analisis/buscar?' + params.toString())
+    .then(r => r.json())
+    .then(data => {
+      const tbody = document.getElementById('buscar-tbody');
+      document.getElementById('buscar-total').textContent =
+        'Total: ' + data.pagination.total_records.toLocaleString() + ' registros';
+
+      if (!data.records.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">No se encontraron pacientes.</td></tr>';
+      } else {
+        tbody.innerHTML = data.records.map(r => `
+          <tr class="buscar-row">
+            <td>${r.id_paciente}</td>
+            <td>${r.gender}</td>
+            <td>${r.age}</td>
+            <td>${r.location}</td>
+            <td>${r.blood_glucose_level}</td>
+            <td>${r.hba1c_level}</td>
+            <td>${r.bmi}</td>
+            <td>${r.diabetes ? 'Sí' : 'No'}</td>
+            <td>
+              <button type="button" class="btn-small btn-edit" onclick="seleccionarPaciente(${r.id_paciente})">
+                Analizar
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      const p = data.pagination;
+      const pag = document.getElementById('buscar-pagination');
+      let html = '';
+      if (p.total_pages > 1) {
+        if (p.has_prev) {
+          html += `<a href="#" onclick="cargarPacientes(${p.page - 1}); return false;">Anterior</a>`;
+        } else {
+          html += '<span class="pagination-disabled">Anterior</span>';
+        }
+        html += `<span class="pagination-info">Página ${p.page} de ${p.total_pages}</span>`;
+        if (p.has_next) {
+          html += `<a href="#" onclick="cargarPacientes(${p.page + 1}); return false;">Siguiente</a>`;
+        } else {
+          html += '<span class="pagination-disabled">Siguiente</span>';
+        }
+      }
+      pag.innerHTML = html;
+    })
+    .catch(() => {
+      document.getElementById('buscar-total').textContent = 'Error al cargar pacientes.';
+      document.getElementById('buscar-tbody').innerHTML =
+        '<tr><td colspan="9" style="text-align:center;color:#ff4444;">Error de conexión.</td></tr>';
+    });
+}
+
+document.getElementById('form-buscar-paciente').addEventListener('submit', function(e) {
+  e.preventDefault();
+  buscarPage = 1;
+  cargarPacientes();
+});
+
+document.getElementById('modal-buscar-paciente').addEventListener('click', function(e) {
+  if (e.target === this) cerrarBuscarPaciente();
+});
+</script>
+
+{% endblock %}

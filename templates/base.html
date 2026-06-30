@@ -7,20 +7,37 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  {% if current_user.is_authenticated %}
   <nav class="navbar">
     <a class="nav-brand" href="/">DiabetCare S.A.</a>
     <ul class="nav-links">
-      <li><a href="/">Inicio</a></li>
-      <li><a href="/registros">Registros Clínicos</a></li>
-      <li><a href="/pacientes">Gestión de Pacientes</a></li>
+      <li><a href="/">Dashboard</a></li>
+      <li><a href="/registros">Registros</a></li>
+      <li><a href="/analisis">Análisis</a></li>
+      {% if current_user.rol in ('admin', 'medico') %}
+      <li><a href="/pacientes">Pacientes</a></li>
+      {% endif %}
+      {% if current_user.rol in ('admin', 'analista') %}
       <li><a href="/dimensiones">Dimensiones</a></li>
+      {% endif %}
+      {% if current_user.is_admin %}
+      <li><a href="/clinicas">Clínicas</a></li>
+      <li><a href="/medicos">Médicos</a></li>
+      {% endif %}
+      <li class="nav-user">
+        <span class="nav-role">{{ current_user.nombre }} ({{ current_user.rol }})</span>
+        <a href="/logout" class="nav-logout">Salir</a>
+      </li>
     </ul>
   </nav>
+  {% endif %}
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  {% if current_user.is_authenticated %}
   <footer class="footer">
     <p>&copy; DiabetCare S.A.</p>
   </footer>
+  {% endif %}
 </body>
 </html>

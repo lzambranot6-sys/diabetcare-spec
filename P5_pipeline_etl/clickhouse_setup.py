@@ -311,3 +311,5 @@ if __name__ == "__main__":
     crear_dimensiones()
     recrear_tabla_principal()
     cargar_datos_originales()
+    from clickhouse_auth_setup import crear_usuarios
+    crear_usuarios(client)

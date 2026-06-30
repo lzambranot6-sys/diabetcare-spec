@@ -3,8 +3,8 @@ import pandas as pd
 
 POCKETBASE_URL = "http://127.0.0.1:8090"
 COLLECTION = "pacientes"
-ADMIN_EMAIL = "lzambranot6@uteq.edu.ec"      # cambia esto
-ADMIN_PASSWORD = "12345Leo"         # cambia esto
+ADMIN_EMAIL = "lzambranot6@uteq.edu.ec"      
+ADMIN_PASSWORD = "12345Leo"         
 
 def get_admin_token():
     url = f"{POCKETBASE_URL}/api/collections/_superusers/auth-with-password"

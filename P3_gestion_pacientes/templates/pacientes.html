@@ -147,6 +147,7 @@
 </div>
 
 <!-- CARGA MASIVA -->
+{% if can_admin %}
 <div class="card" style="margin-bottom: 20px;">
   <h3>⚡ Generación Masiva</h3>
   <div style="display: flex; gap: 15px; align-items: flex-end; margin-top: 15px;">
@@ -182,6 +183,7 @@
     <input type="hidden" name="cantidad" id="hidden-eliminar">
   </form>
 </div>
+{% endif %}
 
 <!-- TOTAL -->
 <p class="total-records">Total: {{ "{:,}".format(total) }} pacientes — Página {{ page }} de {{ total_pages }}</p>
@@ -205,7 +207,7 @@
         <th>Diabetes</th>
         <th>Clínica</th>
         <th>Médico</th>
-        <th>Acción</th>
+        {% if can_admin %}<th>Acción</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -225,6 +227,7 @@
         <td>{{ 'Sí' if row[11] == 1 else 'No' }}</td>
         <td>{{ row[12] }}</td>
         <td>{{ row[13] }}</td>
+        {% if can_admin %}
         <td>
           <form method="post" action="/pacientes/eliminar/{{ row[0] }}">
             <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer;">
@@ -232,6 +235,7 @@
             </button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
