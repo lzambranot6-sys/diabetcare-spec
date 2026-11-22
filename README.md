@@ -2,7 +2,7 @@
 
 ## Video de presentación
 
-[Esta en proceso, me quede sin tokens xd.](ENLACE_DEL_VIDEO)
+[Ver video.](https://www.youtube.com/watch?v=7VcCo7PR0RU)
 
 
 
