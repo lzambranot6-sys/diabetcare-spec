@@ -2,9 +2,9 @@
 
 ## Video de presentación
 
-[Ver el video del proyecto](ENLACE_DEL_VIDEO)
+[Esta en proceso, me quede sin tokens xd.](ENLACE_DEL_VIDEO)
 
-> Reemplaza `ENLACE_DEL_VIDEO` por el enlace del video cuando esté disponible.
+
 
 ## Descripción
 
